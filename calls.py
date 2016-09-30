@@ -1,18 +1,22 @@
-import http.client
+#!/usr/bin/env python
 
-conn = http.client.HTTPSConnection("zabbix.yelpcorp.com")
+import requests
+import json
 
-payload = "{\n    \"jsonrpc\": \"2.0\",\n    \"method\": \"user.login\",\n    \"params\": {\n        \"user\": \"svc-zabbix\",\n        \"password\": \"28uBRjiiqIutpODn3SZo\"\n    },\n    \"id\": 1,\n    \"auth\": null\n}"
+url = "https://zabbix.yelpcorp.com/api_jsonrpc.php"
+secrets = open('secrets.json').read()
 
-headers = {
+def auth(creds):
+  headers = {
     'content-type': "application/json-rpc",
     'cache-control': "no-cache",
-    'postman-token': "7a202916-b04d-4a29-ee0a-126b0f7e9dea"
+    'postman-token': "561fd14a-0622-1d41-4c60-d7582b740e5e"
     }
+  response = requests.request("POST", url, data=creds, headers=headers)
+  return response
 
-conn.request("POST", "/api_jsonrpc.php", payload, headers)
+def main():
+  print(auth(secrets).text)
 
-res = conn.getresponse()
-data = res.read()
-
-print(data.decode("utf-8"))
+if __name__ == '__main__':
+    main()
