@@ -163,19 +163,25 @@ def del_maintenance(host):
       return 'maintenance: ' + maintenance_name + ' was deleted for host: ' + host
 
 
-def start_maintenance(host,howlong):
+def start_maintenance(host_group,howlong):
+  if re.search('group:', host_group):
+    group_type = 'groupids'
+    hostid = get_group_id(host_group)
+  else:
+    group_type = 'hostids'
+    hostid = get_host_id(host_group)
+
   now = int(time.time())
   until = '1594080000'  # 07/07/2020 @ 12:00am (UTC)
-  hostid = get_host_id(host)
   token = get_token(secrets)
   data = {
       'jsonrpc': '2.0',
       'method': 'maintenance.create',
       'params': {
-          'name': 'pause_' + host,
+          'name': 'pause_' + group_type,
           'active_since': now,
           'active_till': until,
-          'hostids': [hostid],
+          group_type: [hostid],
           'timeperiods': [
               {
             'timeperiod_type': 0,
@@ -192,13 +198,14 @@ def start_maintenance(host,howlong):
     print e
     sys.exit(1)
   else:
-      return 'maintenance pause_' + host + ' was created for: ' + host
+      return 'maintenance pause_' + group_type + ' was created for: ' + group_type
 
 
 def main():
-    print(get_maintenance_id('group:pao'))
-    print(get_maintenance_name('host:paoad1'))
-    print(del_maintenance('host:paoad1'))
+#     print(start_maintenance('group:pao',1))
+#    print(get_maintenance_id('group:pao'))
+#    print(get_maintenance_name('host:paoad1'))
+    print(del_maintenance('group:pao'))
 #    print(get_host_id('PAOAD1'))
 #    print(start_maintenance('PAOAD1', 1))
 
