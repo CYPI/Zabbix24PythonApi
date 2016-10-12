@@ -30,50 +30,31 @@ def get_token(creds):
 
 def get_host_id(host):
     hostid = re.sub("host:", "", host, count=1)
-    token = get_token(secrets)
-    data = {
-      'jsonrpc': '2.0',
-      'method': 'host.get',
-      'params': {
+    method = 'host.get'
+    params = {
                   'output': 'extend',
                   'filter': {
                               'host': [hostid]
                             }
-                },
-      'auth': token['result'],
-      'id': token['id'],
-      }
-    response = requests.request("POST", api, data=json.dumps(data), headers=headers)
-    response_formated = json.loads(response.text)
-    return response_formated['result'][0]['hostid']
+                }
+    response = 'host_id'
+    exception = ''
+    return apicall(method, params, response, exception)
 
 
 def get_group_id(group):
     groupid = re.sub("group:", "", group, count=1)
     token = get_token(secrets)
-    data = {
-      'jsonrpc': '2.0',
-      'method': 'hostgroup.get',
-      'params': {
+    method = 'hostgroup.get'
+    params = {
                   'output': 'extend',
                   'filter': {
                               'name': [groupid]
                             }
-                },
-      'auth': token['result'],
-      'id': token['id'],
-      }
-    try:
-        response = requests.request("POST", api, data=json.dumps(data), headers=headers)
-        response_formated = json.loads(response.text)
-    except requests.exceptions.RequestException as e:
-        print 'error:' + e
-        sys.exit(1)
-    else:
-      try:
-        return response_formated['result'][0]['groupid']
-      except:
-        raise Exception ('error getting groupid for: ' + group)
+                }
+    response = 'group_id'
+    exception = ''
+    return apicall(method, params, response, exception)
 
 
 def apicall(method, params, response, exception):
@@ -99,6 +80,10 @@ def apicall(method, params, response, exception):
                 return response_formated['result'][0]['maintenanceid']
             elif response == 'maintenance_name':
                 return response_formated['result'][0]['name']
+            elif response == 'host_id':
+                return response_formated['result'][0]['hostid']
+            elif response == 'group_id':
+                return response_formated['result'][0]['groupid']
             else:
                 return response
         except:
