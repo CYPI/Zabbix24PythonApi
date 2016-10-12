@@ -76,95 +76,86 @@ def get_group_id(group):
         raise Exception ('error getting groupid for: ' + group)
 
 
-class Maintenance(object):
+def apicall(method, params, response, exception):
 
     token = get_token(secrets)
+
+    data = {
+            'jsonrpc': '2.0',
+            'method': method,
+            'params': params,
+            'auth': token['result'],
+            'id': token['id'],
+            }
+    try:
+        responsecall = requests.request("POST", api, data=json.dumps(data), headers=headers)
+        response_formated = json.loads(responsecall.text)
+    except requests.exceptions.RequestException as e:
+        print 'error:' + e
+        sys.exit(1)
+    else:
+        try:
+            if response == 'maintenance_id':
+                return response_formated['result'][0]['maintenanceid']
+            elif response == 'maintenance_name':
+                return response_formated['result'][0]['name']
+            else:
+                return response
+        except:
+            raise Exception(exception)
+
+
+class Maintenance(object):
 
     def __init__(self, args):
 
         self.args = args
 
-    def get_maintenance_group_id(self, group):
-        data = {
-            'jsonrpc': '2.0',
-            'method': 'maintenance.get',
-            'params': {
+    @staticmethod
+    def get_maintenance_group_id(group):
+        method = 'maintenance.get'
+        params = {
                 'output': 'extend',
                 'selectHosts': 'extend',
                 'selecttimeperiods': 'extend',
                 'groupids': get_group_id(group),
-                },
-            'auth': self.token['result'],
-            'id': self.token['id'],
-            }
-        try:
-            response = requests.request("POST", api, data=json.dumps(data), headers=headers)
-            response_formated = json.loads(response.text)
-        except requests.exceptions.RequestException as e:
-            print 'error:' + e
-            sys.exit(1)
-        else:
-            try:
-                return response_formated['result'][0]['maintenanceid']
-            except:
-                raise Exception ('No maintenance for group: ' + group)
+                }
+        response = 'maintenance_id'
+        exception = 'No maintenance for group: ' + group
 
-    def get_maintenance_name(self, host_group):
-        if re.search('group:', host_group):
+        return apicall(method, params, response, exception)
+
+    @staticmethod
+    def get_maintenance_name(host_group):
+        if re.search(r'group:', host_group):
             group_type = 'groupids'
             hostid = get_group_id(host_group)
         else:
             group_type = 'hostids'
             hostid = get_host_id(host_group)
 
-        data = {
-            'jsonrpc': '2.0',
-            'method': 'maintenance.get',
-            'params': {
+        method = 'maintenance.get'
+        params = {
                 'output': 'extend',
                 'selectHosts': 'extend',
                 'selecttimeperiods': 'extend',
                 group_type: hostid
-            },
-            'auth': self.token['result'],
-            'id': self.token['id'],
-            }
-        try:
-            response = requests.request("POST", api, data=json.dumps(data), headers=headers)
-            response_formated = json.loads(response.text)
-        except requests.exceptions.RequestException as e:
-            print e
-            sys.exit(1)
-        else:
-            try:
-                return response_formated['result'][0]['name']
-            except:
-                raise Exception('No maintenance for host: ' + host_group)
+                }
+        response = 'maintenance_name'
+        exception = 'No maintenance for host: ' + host_group
+        return apicall(method, params, response, exception)
 
-    def get_maintenance_host_id(self, host):
-        data = {
-            'jsonrpc': '2.0',
-            'method': 'maintenance.get',
-            'params': {
+    @staticmethod
+    def get_maintenance_host_id(host):
+        method = 'maintenance.get'
+        params = {
             'output': 'extend',
             'selectHosts': 'extend',
             'selecttimeperiods': 'extend',
             'hostids': get_host_id(host),
-            },
-            'auth': self.token['result'],
-            'id': self.token['id'],
-        }
-        try:
-            response = requests.request("POST", api, data=json.dumps(data), headers=headers)
-            response_formated = json.loads(response.text)
-        except requests.exceptions.RequestException as e:
-            print 'error:' + e
-            sys.exit(1)
-        else:
-            try:
-                return response_formated['result'][0]['maintenanceid']
-            except:
-                raise Exception('No maintenance for host: ' + host)
+            }
+        exception = 'No maintenance for host: ' + host
+        return apicall(method, params, 'maintenance_id', exception)
 
     def del_maintenance(self):
         if self.args.group:
@@ -175,37 +166,26 @@ class Maintenance(object):
             maintenance_name = self.get_maintenance_name('host:' + self.args.host)
         else:
             raise Exception('please provide a host name or a group name')
-        data = {
-            'jsonrpc': '2.0',
-            'method': 'maintenance.delete',
-            'params': [mid],
-            'auth': self.token['result'],
-            'id': self.token['id'],
-            }
-        try:
-            requests.request("POST", api, data=json.dumps(data), headers=headers)
-        except requests.exceptions.RequestException as e:
-            print e
-            sys.exit(1)
-        else:
-            return 'maintenance: ' + maintenance_name + ' was deleted successfully'
+        method = 'maintenance.delete'
+        params = [mid]
+        response = 'maintenance: ' + maintenance_name + ' was deleted successfully'
+        exception = ''
+        return apicall(method, params, response, exception)
 
     def start_maintenance_host(self):
         if self.args.host:
             hostid = get_host_id(self.args.host)
         else:
             raise Exception('please provide an host name')
-        if self.args.h:
-            howlong = self.args.h
+        if self.args.hours:
+            howlong = self.args.hours
         else:
             raise Exception('please provide a maintenance duration in hours')
 
         now = int(time.time())
         until = '1594080000'  # 07/07/2020 @ 12:00am (UTC)
-        data = {
-            'jsonrpc': '2.0',
-            'method': 'maintenance.create',
-            'params': {
+        method = 'maintenance.create'
+        params = {
                 'name': 'pause_' + self.args.host,
                 'active_since': now,
                 'active_till': until,
@@ -216,36 +196,26 @@ class Maintenance(object):
                     'period': howlong*3600,
                     }
                 ],
-            },
-            'auth': self.token['result'],
-            'id': self.token['id'],
-        }
-        try:
-            requests.request("POST", api, data=json.dumps(data), headers=headers)
-        except requests.exceptions.RequestException as e:
-            print e
-            sys.exit(1)
-        else:
-            return 'maintenance pause_' + self.args.host + ' was created for: ' + self.args.host
+            }
+        response = 'maintenance pause_' + self.args.host + ' was created for: ' + self.args.host
+        exception = ''
+        return apicall(method, params, response, exception)
 
     def start_maintenance_group(self):
         if self.args.group:
             groupid = get_group_id(self.args.group)
         else:
             raise Exception('please provide a group name')
-        if self.args.h:
-            howlong = self.args.h
+        if self.args.hours:
+            howlong = self.args.hours
             print howlong
         else:
             raise Exception('please provide a maintenance duration in hours')
 
         now = int(time.time())
         until = '1594080000'  # 07/07/2020 @ 12:00am (UTC)
-        token = get_token(secrets)
-        data = {
-            'jsonrpc': '2.0',
-            'method': 'maintenance.create',
-            'params': {
+        method = 'maintenance.create'
+        params = {
                 'name': 'pause_' + self.args.group,
                 'active_since': now,
                 'active_till': until,
@@ -256,24 +226,17 @@ class Maintenance(object):
                     'period': howlong*3600,
                     }
                 ],
-            },
-            'auth': self.token['result'],
-            'id': self.token['id'],
-        }
-        try:
-            requests.request("POST", api, data=json.dumps(data), headers=headers)
-        except requests.exceptions.RequestException as e:
-            print e
-            sys.exit(1)
-        else:
-            return 'maintenance group pause_' + self.args.group + ' was created for: ' + self.args.group
+            }
+        response = 'maintenance group pause_' + self.args.group + ' was created for: ' + self.args.group
+        exception = ''
+        return apicall(method, params, response, exception)
 
 
 def argument_check(args):
-    if args.pause and args.host and args.h:
+    if args.pause and args.host and args.hours:
         pause_host = Maintenance(args)
         print(pause_host.start_maintenance_host())
-    elif args.pause and args.group and args.h:
+    elif args.pause and args.group and args.hours:
         pause_group = Maintenance(args)
         print(pause_group.start_maintenance_group())
     elif args.unpause:
@@ -290,7 +253,7 @@ def main():
     arg_caption_unpause = 'Delete a maintenance period for a host or group'
     arg_caption_host = 'Host name'
     arg_caption_group = 'Group name'
-    arg_caption_h = 'how long the maintenance will be for in hours'
+    arg_caption_hours = 'how long the maintenance will be for in hours'
 
     parser = argparse.ArgumentParser(description=app_caption)
     parser.add_argument('--pause', action='store_true',
@@ -301,8 +264,8 @@ def main():
                         help=arg_caption_host)
     parser.add_argument('--group', type=str,
                         help=arg_caption_group)
-    parser.add_argument('--h', type=int,
-                        help=arg_caption_h)
+    parser.add_argument('--hours', type=int,
+                        help=arg_caption_hours)
 
     args = parser.parse_args()
     argument_check(args)
