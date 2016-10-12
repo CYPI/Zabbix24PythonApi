@@ -37,14 +37,11 @@ def get_host_id(host):
                               'host': [hostid]
                             }
                 }
-    response = 'host_id'
-    exception = ''
-    return apicall(method, params, response, exception)
+    return apicall(method, params, 'hostid')
 
 
 def get_group_id(group):
     groupid = re.sub("group:", "", group, count=1)
-    token = get_token(secrets)
     method = 'hostgroup.get'
     params = {
                   'output': 'extend',
@@ -52,14 +49,14 @@ def get_group_id(group):
                               'name': [groupid]
                             }
                 }
-    response = 'group_id'
-    exception = ''
-    return apicall(method, params, response, exception)
+    return apicall(method, params, 'groupid')
 
 
-def apicall(method, params, response, exception):
+def apicall(method, params, response, exception=''):
 
     token = get_token(secrets)
+
+    response_options = ['maintenanceid', 'name', 'hostid', 'groupid']
 
     data = {
             'jsonrpc': '2.0',
@@ -76,14 +73,8 @@ def apicall(method, params, response, exception):
         sys.exit(1)
     else:
         try:
-            if response == 'maintenance_id':
-                return response_formated['result'][0]['maintenanceid']
-            elif response == 'maintenance_name':
-                return response_formated['result'][0]['name']
-            elif response == 'host_id':
-                return response_formated['result'][0]['hostid']
-            elif response == 'group_id':
-                return response_formated['result'][0]['groupid']
+            if response in response_options:
+                return response_formated['result'][0][response]
             else:
                 return response
         except:
@@ -105,10 +96,8 @@ class Maintenance(object):
                 'selecttimeperiods': 'extend',
                 'groupids': get_group_id(group),
                 }
-        response = 'maintenance_id'
         exception = 'No maintenance for group: ' + group
-
-        return apicall(method, params, response, exception)
+        return apicall(method, params, 'maintenanceid', exception)
 
     @staticmethod
     def get_maintenance_name(host_group):
@@ -140,7 +129,7 @@ class Maintenance(object):
             'hostids': get_host_id(host),
             }
         exception = 'No maintenance for host: ' + host
-        return apicall(method, params, 'maintenance_id', exception)
+        return apicall(method, params, 'maintenanceid', exception)
 
     def del_maintenance(self):
         if self.args.group:
@@ -154,8 +143,7 @@ class Maintenance(object):
         method = 'maintenance.delete'
         params = [mid]
         response = 'maintenance: ' + maintenance_name + ' was deleted successfully'
-        exception = ''
-        return apicall(method, params, response, exception)
+        return apicall(method, params, response, '')
 
     def start_maintenance_host(self):
         if self.args.host:
@@ -183,8 +171,7 @@ class Maintenance(object):
                 ],
             }
         response = 'maintenance pause_' + self.args.host + ' was created for: ' + self.args.host
-        exception = ''
-        return apicall(method, params, response, exception)
+        return apicall(method, params, response)
 
     def start_maintenance_group(self):
         if self.args.group:
@@ -193,7 +180,6 @@ class Maintenance(object):
             raise Exception('please provide a group name')
         if self.args.hours:
             howlong = self.args.hours
-            print howlong
         else:
             raise Exception('please provide a maintenance duration in hours')
 
@@ -213,8 +199,7 @@ class Maintenance(object):
                 ],
             }
         response = 'maintenance group pause_' + self.args.group + ' was created for: ' + self.args.group
-        exception = ''
-        return apicall(method, params, response, exception)
+        return apicall(method, params, response)
 
 
 def argument_check(args):
