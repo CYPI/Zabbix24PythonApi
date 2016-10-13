@@ -75,6 +75,8 @@ def apicall(method, params, response, exception=''):
         try:
             if response in response_options:
                 return response_formated['result'][0][response]
+            elif response == 'eventid':
+                return response_formated
             else:
                 return response
         except:
@@ -202,16 +204,44 @@ class Maintenance(object):
         return apicall(method, params, response)
 
 
+def eventid(args):
+    method = 'event.get'
+    params = {
+        'output': 'extend',
+        'select_acknowledges': 'extend',
+        'objectids': args.trigger,
+        'sortfield': ['clock', 'eventid'],
+        'sortorder': 'DESC'
+        }
+    return apicall(method, params, 'eventid')
+
+def acknowledge(args):
+    if args.m:
+        message = args.m
+    else:
+        message = ""
+    method = 'event.acknowledge'
+    params = {
+        'eventids': args.ack,
+        'message': message
+        }
+    response = 'alert ' + str(args.ack) + ' has been ack sucessfully.'
+    return apicall(method, params, response)
+
+
 def argument_check(args):
-    if args.pause and args.host and args.hours:
-        pause_host = Maintenance(args)
-        print(pause_host.start_maintenance_host())
-    elif args.pause and args.group and args.hours:
-        pause_group = Maintenance(args)
-        print(pause_group.start_maintenance_group())
+    pause = Maintenance(args)
+    if args.pause:
+        if args.host and args.hours:
+            print(pause.start_maintenance_host())
+        elif args.group and args.hours:
+            print(pause.start_maintenance_group())
     elif args.unpause:
-        unpause = Maintenance(args)
-        print(unpause.del_maintenance())
+        print(pause.del_maintenance())
+    elif args.ack:
+        print(acknowledge(args))
+    elif args.trigger:
+        print(eventid(args))
     else:
         raise Exception('please select an host or a group and a time during')
 
@@ -224,6 +254,9 @@ def main():
     arg_caption_host = 'Host name'
     arg_caption_group = 'Group name'
     arg_caption_hours = 'how long the maintenance will be for in hours'
+    arg_caption_trigger = 'shows trigger events'
+    arg_caption_ack = 'Alert ID to ack'
+    arg_caption_m = 'ack comment'
 
     parser = argparse.ArgumentParser(description=app_caption)
     parser.add_argument('--pause', action='store_true',
@@ -236,6 +269,13 @@ def main():
                         help=arg_caption_group)
     parser.add_argument('--hours', type=int,
                         help=arg_caption_hours)
+    parser.add_argument('--trigger', type=int,
+                        help=arg_caption_trigger)
+    parser.add_argument('--ack', type=int,
+                        help=arg_caption_ack)
+    parser.add_argument('--m', type=str,
+                        help=arg_caption_m)
+
 
     args = parser.parse_args()
     argument_check(args)
