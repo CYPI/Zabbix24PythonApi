@@ -8,7 +8,7 @@ import re
 import time
 
 
-api = "https://zabbix.yelpcorp.com/api_jsonrpc.php"
+api = "https://<<your zabbix server>>/api_jsonrpc.php"
 secrets = open('secrets.json').read()
 headers = {
   'content-type': "application/json-rpc",
@@ -275,9 +275,7 @@ def main():
     arg_caption_host = 'Host name'
     arg_caption_group = 'Group name'
     arg_caption_hours = 'how long the maintenance will be for in hours'
-    arg_caption_trigger = 'shows trigger events'
     arg_caption_ackevent = 'ack event'
-    arg_caption_acktrigger = 'ack trigger'
     arg_caption_m = 'ack comment'
 
     parser = argparse.ArgumentParser(description=app_caption)
@@ -291,12 +289,8 @@ def main():
                         help=arg_caption_group)
     parser.add_argument('--hours', type=int,
                         help=arg_caption_hours)
-    parser.add_argument('--trigger', type=int,
-                        help=arg_caption_trigger)
     parser.add_argument('--ackevent', type=int,
                         help=arg_caption_ackevent)
-    parser.add_argument('--acktrigger', type=int,
-                        help=arg_caption_acktrigger)
     parser.add_argument('--m', type=str,
                         help=arg_caption_m)
 
