@@ -6,6 +6,7 @@ import requests
 import re
 import time
 
+
 api = "https://zabbix.yelpcorp.com/api_jsonrpc.php"
 secrets = open('secrets.json').read()
 headers = {
@@ -156,15 +157,20 @@ class Maintenance(object):
             howlong = self.args.hours
         else:
             raise Exception('please provide a maintenance duration in hours')
+        if self.args.username:
+            username = self.args.username
+        else:
+            username = ''
 
         now = int(time.time())
-        until = '1594080000'  # 07/07/2020 @ 12:00am (UTC)
+        until = int(time.time()) + howlong*3600
         method = 'maintenance.create'
         params = {
                 'name': 'pause_' + self.args.host,
                 'active_since': now,
                 'active_till': until,
                 'hostids': [hostid],
+                'description': 'created by: ' + username,
                 'timeperiods': [
                     {
                     'timeperiod_type': 0,
@@ -186,7 +192,8 @@ class Maintenance(object):
             raise Exception('please provide a maintenance duration in hours')
 
         now = int(time.time())
-        until = '1594080000'  # 07/07/2020 @ 12:00am (UTC)
+        until = int(time.time()) + howlong*3600
+
         method = 'maintenance.create'
         params = {
                 'name': 'pause_' + self.args.group,
@@ -214,6 +221,7 @@ def eventid(args):
         'sortorder': 'DESC'
         }
     return apicall(method, params, 'eventid')
+
 
 def acknowledge(args):
     if args.m:
@@ -257,6 +265,7 @@ def main():
     arg_caption_trigger = 'shows trigger events'
     arg_caption_ack = 'Alert ID to ack'
     arg_caption_m = 'ack comment'
+    arg_caption_username = 'username'
 
     parser = argparse.ArgumentParser(description=app_caption)
     parser.add_argument('--pause', action='store_true',
@@ -275,6 +284,8 @@ def main():
                         help=arg_caption_ack)
     parser.add_argument('--m', type=str,
                         help=arg_caption_m)
+    parser.add_argument('--username', type=str,
+                        help=arg_caption_username)
 
 
     args = parser.parse_args()
