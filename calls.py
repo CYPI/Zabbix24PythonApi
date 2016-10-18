@@ -8,7 +8,16 @@ import time
 
 
 api = "https://zabbix.yelpcorp.com/api_jsonrpc.php"
-secrets = open('secrets.json').read()
+secrets = {
+    "jsonrpc": "2.0",
+    "method": "user.login",
+    "params": {
+        "user": "svc-zabbix",
+        "password": "28uBRjiiqIutpODn3SZo"
+    },
+    "id": 1,
+    "auth": null
+}
 headers = {
   'content-type': "application/json-rpc",
   'cache-control': "no-cache",
