@@ -2,13 +2,21 @@
 Zabbix 2.4 api python script
 
 optional arguments:
+
   -h, --help           show this help message and exit
+  
   --pause              Create a maintenance period for a host or group
+  
   --unpause            Delete a maintenance period for a host or group
+  
   --host HOST          Host name
+  
   --group GROUP        Group name
+  
   --hours HOURS        how long the maintenance will be for in hours
+  
   --ackevent ACKEVENT  ack event
+  
   --m M                ack comment
   
   
