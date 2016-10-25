@@ -67,7 +67,7 @@ def apicall(method, params, response, exception=''):
 
     token = get_token(secrets)
 
-    response_options = ['maintenanceid', 'name', 'hostid', 'groupid']
+    response_options = ['maintenanceid', 'name', 'hostid', 'groupid', 'name']
 
     data = {
             'jsonrpc': '2.0',
@@ -112,25 +112,28 @@ class Maintenance(object):
         exception = 'No maintenance for group: ' + group
         return apicall(method, params, 'maintenanceid', exception)
 
-    @staticmethod
-    def get_maintenance_name(host_group):
-        if re.search(r'group:', host_group):
+    def get_maintenance_name(self):
+        if self.args.group:
             group_type = 'groupids'
-            hostid = get_group_id(host_group)
-        else:
+            hostid = get_group_id(self.args.group)
+        elif self.args.host:
             group_type = 'hostids'
-            hostid = get_host_id(host_group)
+            hostid = get_host_id(self.args.host)
+        else:
+            Exception('Please provide either a group or a host name')
 
         method = 'maintenance.get'
         params = {
                 'output': 'extend',
-                'selectHosts': 'extend',
                 'selecttimeperiods': 'extend',
                 group_type: hostid
                 }
-        response = 'maintenance_name'
-        exception = 'No maintenance for host: ' + host_group
-        return apicall(method, params, response, exception)
+        response = 'name'
+        exception = 'No maintenance'
+        if hostid:
+            return apicall(method, params, response, exception)
+        else:
+            raise Exception('Enter a valid host or group name')
 
     @staticmethod
     def get_maintenance_host_id(host):
@@ -145,14 +148,14 @@ class Maintenance(object):
         return apicall(method, params, 'maintenanceid', exception)
 
     def del_maintenance(self):
-        if self.args.group:
+        if self.args.group and re.search(r'pause_', self.get_maintenance_name()):
             mid = self.get_maintenance_group_id(self.args.group)
             hostgroup = self.args.group
-        elif self.args.host:
+        elif self.args.host and re.search(r'pause_', self.get_maintenance_name()):
             mid = self.get_maintenance_host_id(self.args.host)
-	    hostgroup = self.args.host
+            hostgroup = self.args.host
         else:
-            raise Exception('please provide a host name or a group name')
+            raise Exception('No maintenance found to delete')
         method = 'maintenance.delete'
         params = [mid]
         response = 'maintenance for ' + hostgroup + ' was deleted successfully'
@@ -269,6 +272,8 @@ def arguments_to_functions(args):
         print(acknowledge(args))
     elif args.trigger:
         print(eventid(args))
+    elif args.maintenancename:
+        print(pause.get_maintenance_name())
     else:
         raise Exception('please select an host or a group and a time during')
 
@@ -285,6 +290,7 @@ def main():
     arg_caption_ack = 'Eventid to ack'
     arg_caption_m = 'ack comment'
     arg_caption_username = 'username'
+    arg_caption_maintenancename = 'return the maintenance name'
 
     parser = argparse.ArgumentParser(description=app_caption)
     parser.add_argument('--pause', action='store_true',
@@ -305,6 +311,8 @@ def main():
                         help=arg_caption_m)
     parser.add_argument('--username', type=str,
                         help=arg_caption_username)
+    parser.add_argument('--maintenancename', action='store_true',
+                        help=arg_caption_maintenancename)
 
 
     args = parser.parse_args()
