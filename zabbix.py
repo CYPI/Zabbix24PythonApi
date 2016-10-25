@@ -1,27 +1,34 @@
 #!/usr/bin/env python
 
+# Description:
+#   Uses Zabbix api to :
+#  - create maintenance period for host or group of hosts (site code only for now e.g sfo sfo2 iad) 
+#  - acknowledge events
+
 import argparse
 import json
-import requests
 import re
+import requests
 import time
 
 
+# Zabbix api fqdn
 api = "https://zabbixapi.yelpcorp.com/api_jsonrpc.php"
+
+# Credential file to connect to Zabbix api. File managed by puppet.
 secrets = open('secrets.json').read()
 headers = {
   'content-type': "application/json-rpc",
   'cache-control': "no-cache",
-  'postman-token': "561fd14a-0622-1d41-4c60-d7582b740e5e"
   }
 
 
+# Generate a token to connect ot Zabbix api
 def get_token(creds):
   try:
     response = requests.request("POST", api, data=creds, headers=headers)
-  except requests.exceptions.RequestException as e:
-    print e
-    sys.exit(1)
+  except:
+    raise Exception ('problem getting a token')
   else:
     try:
       return json.loads(response.text)
@@ -29,6 +36,7 @@ def get_token(creds):
       raise Exception ('problem getting a token')
 
 
+# Return a host id with a host name
 def get_host_id(host):
     hostid = re.sub("host:", "", host, count=1)
     method = 'host.get'
@@ -41,6 +49,7 @@ def get_host_id(host):
     return apicall(method, params, 'hostid')
 
 
+# Return a group id with a group name
 def get_group_id(group):
     groupid = re.sub("group:", "", group, count=1)
     method = 'hostgroup.get'
@@ -53,6 +62,7 @@ def get_group_id(group):
     return apicall(method, params, 'groupid')
 
 
+# Generate a POST request to Zabbix server
 def apicall(method, params, response, exception=''):
 
     token = get_token(secrets)
@@ -137,15 +147,15 @@ class Maintenance(object):
     def del_maintenance(self):
         if self.args.group:
             mid = self.get_maintenance_group_id(self.args.group)
-            maintenance_name = self.get_maintenance_name('group:' + self.args.group)
+            hostgroup = self.args.group
         elif self.args.host:
             mid = self.get_maintenance_host_id(self.args.host)
-            maintenance_name = self.get_maintenance_name('host:' + self.args.host)
+	    hostgroup = self.args.host
         else:
             raise Exception('please provide a host name or a group name')
         method = 'maintenance.delete'
         params = [mid]
-        response = 'maintenance: ' + maintenance_name + ' was deleted successfully'
+        response = 'maintenance for ' + hostgroup + ' was deleted successfully'
         return apicall(method, params, response, '')
 
     def start_maintenance_host(self):
@@ -154,7 +164,7 @@ class Maintenance(object):
         else:
             raise Exception('please provide an host name')
         if self.args.hours:
-            howlong = self.args.hours
+            howlong = int(self.args.hours)
         else:
             raise Exception('please provide a maintenance duration in hours')
         if self.args.username:
@@ -178,7 +188,7 @@ class Maintenance(object):
                     }
                 ],
             }
-        response = 'maintenance pause_' + self.args.host + ' was created for: ' + self.args.host
+        response = 'Zabbix monitoring was paused for ' + str(howlong) + ' hour(s) on ' + str(self.args.host)
         return apicall(method, params, response)
 
     def start_maintenance_group(self):
@@ -187,9 +197,13 @@ class Maintenance(object):
         else:
             raise Exception('please provide a group name')
         if self.args.hours:
-            howlong = self.args.hours
+            howlong = int(self.args.hours)
         else:
             raise Exception('please provide a maintenance duration in hours')
+	if self.args.username:
+            username = self.args.username
+        else:
+            username = ''
 
         now = int(time.time())
         until = int(time.time()) + howlong*3600
@@ -200,6 +214,7 @@ class Maintenance(object):
                 'active_since': now,
                 'active_till': until,
                 'groupids': [groupid],
+		'description': 'created by: ' + username,
                 'timeperiods': [
                     {
                     'timeperiod_type': 0,
@@ -207,7 +222,7 @@ class Maintenance(object):
                     }
                 ],
             }
-        response = 'maintenance group pause_' + self.args.group + ' was created for: ' + self.args.group
+        response = 'Zabbix monitoring was paused for ' + str(howlong) + ' hour(s) on ' + str(self.args.group)
         return apicall(method, params, response)
 
 
@@ -227,17 +242,21 @@ def acknowledge(args):
     if args.m:
         message = args.m
     else:
-        message = ""
+        message = 'no comment added'
+    if args.username:
+        username = args.username
+    else:
+        username = 'no username available'
     method = 'event.acknowledge'
     params = {
         'eventids': args.ack,
-        'message': message
+        'message': username + ': ' + message
         }
-    response = 'alert ' + str(args.ack) + ' has been ack sucessfully.'
+    response = 'alert ' + str(args.ack) + ' has been acked sucessfully.'
     return apicall(method, params, response)
 
 
-def argument_check(args):
+def arguments_to_functions(args):
     pause = Maintenance(args)
     if args.pause:
         if args.host and args.hours:
@@ -263,7 +282,7 @@ def main():
     arg_caption_group = 'Group name'
     arg_caption_hours = 'how long the maintenance will be for in hours'
     arg_caption_trigger = 'shows trigger events'
-    arg_caption_ack = 'Alert ID to ack'
+    arg_caption_ack = 'Eventid to ack'
     arg_caption_m = 'ack comment'
     arg_caption_username = 'username'
 
@@ -289,7 +308,7 @@ def main():
 
 
     args = parser.parse_args()
-    argument_check(args)
+    arguments_to_functions(args)
 
 if __name__ == '__main__':
     main()
