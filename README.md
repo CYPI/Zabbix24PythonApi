@@ -1,7 +1,25 @@
 # Zabbix24PythonApi
 Zabbix 2.4 api python script
 
-optional arguments:
+This script let's you create Zabbix maintenance period for a host or a group of hosts.
+It allows you to acknowledge events as well.
+
+#configuration
+in zabbix.py, add your zabbix server's fqdn:
+  api = "https://<<zabbixserver_fqdn>>/api_jsonrpc.php"
+in secrets.json, add a username and password with api permissions:
+{
+    "jsonrpc": "2.0",
+    "method": "user.login",
+    "params": {
+        "user": "<username>",
+        "password": "<password>"
+    },
+    "id": 1,
+    "auth": null
+}
+
+#optional arguments:
 
   -h, --help           show this help message and exit
   
@@ -15,9 +33,10 @@ optional arguments:
   
   --hours HOURS        how long the maintenance will be for in hours
   
-  --ackevent ACKEVENT  ack event
+  --ack                eventid that you want to acknowledge
   
-  --m M                ack comment
+  --m                  acknowledge comment
+  
   
   
   e.g
