@@ -1,28 +1,34 @@
 #!/usr/bin/env python
 
+# Description:
+#   Uses Zabbix api to :
+#  - create maintenance period for host or group of hosts (site code only for now e.g sfo sfo2 iad) 
+#  - acknowledge events
+
 import argparse
-import datetime
 import json
-import requests
 import re
+import requests
 import time
 
 
-api = "https://<<your zabbix server>>/api_jsonrpc.php"
+# Zabbix api fqdn
+api = "https://<<zabbix server fqdn>>/api_jsonrpc.php"
+
+# Credential file to connect to Zabbix api. File managed by puppet.
 secrets = open('secrets.json').read()
 headers = {
   'content-type': "application/json-rpc",
   'cache-control': "no-cache",
-  'postman-token': "561fd14a-0622-1d41-4c60-d7582b740e5e"
   }
 
 
+# Generate a token to connect ot Zabbix api
 def get_token(creds):
   try:
     response = requests.request("POST", api, data=creds, headers=headers)
-  except requests.exceptions.RequestException as e:
-    print e
-    sys.exit(1)
+  except:
+    raise Exception ('problem getting a token')
   else:
     try:
       return json.loads(response.text)
@@ -30,6 +36,7 @@ def get_token(creds):
       raise Exception ('problem getting a token')
 
 
+# Return a host id with a host name
 def get_host_id(host):
     hostid = re.sub("host:", "", host, count=1)
     method = 'host.get'
@@ -42,6 +49,7 @@ def get_host_id(host):
     return apicall(method, params, 'hostid')
 
 
+# Return a group id with a group name
 def get_group_id(group):
     groupid = re.sub("group:", "", group, count=1)
     method = 'hostgroup.get'
@@ -54,11 +62,12 @@ def get_group_id(group):
     return apicall(method, params, 'groupid')
 
 
+# Generate a POST request to Zabbix server
 def apicall(method, params, response, exception=''):
 
     token = get_token(secrets)
 
-    response_options = ['maintenanceid', 'name', 'hostid', 'groupid']
+    response_options = ['maintenanceid', 'name', 'hostid', 'groupid', 'name']
 
     data = {
             'jsonrpc': '2.0',
@@ -78,12 +87,7 @@ def apicall(method, params, response, exception=''):
             if response in response_options:
                 return response_formated['result'][0][response]
             elif response == 'eventid':
-                events = []
-                for event in response_formated['result']:
-                    if not event['acknowledges']:
-                        events.append(event['eventid'])
-                print events
-                return events
+                return response_formated
             else:
                 return response
         except:
@@ -108,25 +112,28 @@ class Maintenance(object):
         exception = 'No maintenance for group: ' + group
         return apicall(method, params, 'maintenanceid', exception)
 
-    @staticmethod
-    def get_maintenance_name(host_group):
-        if re.search(r'group:', host_group):
+    def get_maintenance_name(self):
+        if self.args.group:
             group_type = 'groupids'
-            hostid = get_group_id(host_group)
-        else:
+            hostid = get_group_id(self.args.group)
+        elif self.args.host:
             group_type = 'hostids'
-            hostid = get_host_id(host_group)
+            hostid = get_host_id(self.args.host)
+        else:
+            Exception('Please provide either a group or a host name')
 
         method = 'maintenance.get'
         params = {
                 'output': 'extend',
-                'selectHosts': 'extend',
                 'selecttimeperiods': 'extend',
                 group_type: hostid
                 }
-        response = 'maintenance_name'
-        exception = 'No maintenance for host: ' + host_group
-        return apicall(method, params, response, exception)
+        response = 'name'
+        exception = 'No maintenance'
+        if hostid:
+            return apicall(method, params, response, exception)
+        else:
+            raise Exception('Enter a valid host or group name')
 
     @staticmethod
     def get_maintenance_host_id(host):
@@ -141,17 +148,17 @@ class Maintenance(object):
         return apicall(method, params, 'maintenanceid', exception)
 
     def del_maintenance(self):
-        if self.args.group:
+        if self.args.group and re.search(r'pause_', self.get_maintenance_name()):
             mid = self.get_maintenance_group_id(self.args.group)
-            maintenance_name = self.get_maintenance_name('group:' + self.args.group)
-        elif self.args.host:
+            hostgroup = self.args.group
+        elif self.args.host and re.search(r'pause_', self.get_maintenance_name()):
             mid = self.get_maintenance_host_id(self.args.host)
-            maintenance_name = self.get_maintenance_name('host:' + self.args.host)
+            hostgroup = self.args.host
         else:
-            raise Exception('please provide a host name or a group name')
+            raise Exception('No maintenance found to delete')
         method = 'maintenance.delete'
         params = [mid]
-        response = 'maintenance: ' + maintenance_name + ' was deleted successfully'
+        response = 'maintenance for ' + hostgroup + ' was deleted successfully'
         return apicall(method, params, response, '')
 
     def start_maintenance_host(self):
@@ -160,18 +167,23 @@ class Maintenance(object):
         else:
             raise Exception('please provide an host name')
         if self.args.hours:
-            howlong = self.args.hours
+            howlong = int(self.args.hours)
         else:
             raise Exception('please provide a maintenance duration in hours')
+        if self.args.username:
+            username = self.args.username
+        else:
+            username = ''
 
         now = int(time.time())
-        until = '1594080000'  # 07/07/2020 @ 12:00am (UTC)
+        until = int(time.time()) + howlong*3600
         method = 'maintenance.create'
         params = {
                 'name': 'pause_' + self.args.host,
                 'active_since': now,
                 'active_till': until,
                 'hostids': [hostid],
+                'description': 'created by: ' + username,
                 'timeperiods': [
                     {
                     'timeperiod_type': 0,
@@ -179,7 +191,7 @@ class Maintenance(object):
                     }
                 ],
             }
-        response = 'maintenance pause_' + self.args.host + ' was created for: ' + self.args.host
+        response = 'Zabbix monitoring was paused for ' + str(howlong) + ' hour(s) on ' + str(self.args.host)
         return apicall(method, params, response)
 
     def start_maintenance_group(self):
@@ -188,19 +200,24 @@ class Maintenance(object):
         else:
             raise Exception('please provide a group name')
         if self.args.hours:
-            howlong = self.args.hours
+            howlong = int(self.args.hours)
         else:
             raise Exception('please provide a maintenance duration in hours')
+	if self.args.username:
+            username = self.args.username
+        else:
+            username = ''
 
-#        now = int(time.time())
-        now = datetime.datetime.now()
-        until = '1594080000'  # 07/07/2020 @ 12:00am (UTC)
+        now = int(time.time())
+        until = int(time.time()) + howlong*3600
+
         method = 'maintenance.create'
         params = {
                 'name': 'pause_' + self.args.group,
                 'active_since': now,
                 'active_till': until,
                 'groupids': [groupid],
+		'description': 'created by: ' + username,
                 'timeperiods': [
                     {
                     'timeperiod_type': 0,
@@ -208,45 +225,41 @@ class Maintenance(object):
                     }
                 ],
             }
-        response = 'maintenance group pause_' + self.args.group + ' was created for: ' + self.args.group
+        response = 'Zabbix monitoring was paused for ' + str(howlong) + ' hour(s) on ' + str(self.args.group)
         return apicall(method, params, response)
 
 
-def acknowledge_trigger(args):
-#    now = datetime.datetime.fromtimestamp(time.time()).strftime('%d/%m/%Y')
-#    nowtimestamp = time.mktime(datetime.datetime.strptime(now, "%d/%m/%Y").timetuple())
-#    timefrom = '1476304253'  # Wed, 12 Oct 2016 20:30:53 GMT
+def eventid(args):
     method = 'event.get'
     params = {
         'output': 'extend',
         'select_acknowledges': 'extend',
         'objectids': args.trigger,
-#        'time_from': timefrom,
-#        'time_till': nowtimestamp,
         'sortfield': ['clock', 'eventid'],
         'sortorder': 'DESC'
         }
-    events = apicall(method, params, 'eventid')
-    for event in events:
-        i = 0
-        while i <= 10:
-            print (acknowledge_event(event, args.m))
-            i += 1
-    return 'all events for trigger: ' + args.trigger + 'have been ack.'
+    return apicall(method, params, 'eventid')
 
 
-def acknowledge_event(eventid, message=''):
-
+def acknowledge(args):
+    if args.m:
+        message = args.m
+    else:
+        message = 'no comment added'
+    if args.username:
+        username = args.username
+    else:
+        username = 'no username available'
     method = 'event.acknowledge'
     params = {
-        'eventids': eventid,
-        'message': message
+        'eventids': args.ack,
+        'message': username + ': ' + message
         }
-    response = 'alert ' + str(eventid) + ' has been ack sucessfully.'
+    response = 'alert ' + str(args.ack) + ' has been acked sucessfully.'
     return apicall(method, params, response)
 
 
-def argument_check(args):
+def arguments_to_functions(args):
     pause = Maintenance(args)
     if args.pause:
         if args.host and args.hours:
@@ -255,14 +268,12 @@ def argument_check(args):
             print(pause.start_maintenance_group())
     elif args.unpause:
         print(pause.del_maintenance())
-    elif args.ackevent:
-        eventid = args.ackevent
-        if args.m:
-            print(acknowledge_event(eventid, args.m))
-        else:
-            print(acknowledge_event(eventid))
-    elif args.acktrigger:
-        print(acknowledge_trigger(args))
+    elif args.ack:
+        print(acknowledge(args))
+    elif args.trigger:
+        print(eventid(args))
+    elif args.maintenancename:
+        print(pause.get_maintenance_name())
     else:
         raise Exception('please select an host or a group and a time during')
 
@@ -275,8 +286,11 @@ def main():
     arg_caption_host = 'Host name'
     arg_caption_group = 'Group name'
     arg_caption_hours = 'how long the maintenance will be for in hours'
-    arg_caption_ackevent = 'ack event'
+    arg_caption_trigger = 'shows trigger events'
+    arg_caption_ack = 'Eventid to ack'
     arg_caption_m = 'ack comment'
+    arg_caption_username = 'username'
+    arg_caption_maintenancename = 'return the maintenance name'
 
     parser = argparse.ArgumentParser(description=app_caption)
     parser.add_argument('--pause', action='store_true',
@@ -289,14 +303,20 @@ def main():
                         help=arg_caption_group)
     parser.add_argument('--hours', type=int,
                         help=arg_caption_hours)
-    parser.add_argument('--ackevent', type=int,
-                        help=arg_caption_ackevent)
+    parser.add_argument('--trigger', type=int,
+                        help=arg_caption_trigger)
+    parser.add_argument('--ack', type=int,
+                        help=arg_caption_ack)
     parser.add_argument('--m', type=str,
                         help=arg_caption_m)
+    parser.add_argument('--username', type=str,
+                        help=arg_caption_username)
+    parser.add_argument('--maintenancename', action='store_true',
+                        help=arg_caption_maintenancename)
 
 
     args = parser.parse_args()
-    argument_check(args)
+    arguments_to_functions(args)
 
 if __name__ == '__main__':
     main()
