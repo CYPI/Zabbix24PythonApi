@@ -13,7 +13,7 @@ import time
 
 
 # Zabbix api fqdn
-api = "https://zabbixapi.yelpcorp.com/api_jsonrpc.php"
+api = "https://<<zabbix server fqdn>>/api_jsonrpc.php"
 
 # Credential file to connect to Zabbix api. File managed by puppet.
 secrets = open('secrets.json').read()
