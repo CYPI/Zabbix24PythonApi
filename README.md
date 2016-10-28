@@ -5,9 +5,13 @@ This script let's you create Zabbix maintenance period for a host or a group of 
 It allows you to acknowledge events as well.
 
 #configuration
+
 in zabbix.py, add your zabbix server's fqdn:
+
   api = "https://<<zabbixserver_fqdn>>/api_jsonrpc.php"
+  
 in secrets.json, add a username and password with api permissions:
+
 {
     "jsonrpc": "2.0",
     "method": "user.login",
